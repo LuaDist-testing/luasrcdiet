@@ -3,15 +3,15 @@
 -- vim: set ft=lua:
 
 package = 'LuaSrcDiet'
-version = '0.3.0-2'
+version = '1.0.0-2'
 
 -- LuaDist source
 source = {
-  tag = "0.3.0-2",
+  tag = "1.0.0-2",
   url = "git://github.com/LuaDist-testing/luasrcdiet.git"
 }
 -- Original source
--- 			source = { url = 'https://github.com/jirutka/luasrcdiet/archive/v0.3.0/luasrcdiet-0.3.0.tar.gz', md5 = 'c0ff36ef66cd0568c96bc54e9253a8fa' }
+-- 			source = { url = 'https://github.com/jirutka/luasrcdiet/archive/v1.0.0/luasrcdiet-1.0.0.tar.gz', md5 = 'c50c2d312c0b4d67772bc31f58449fca' }
 -- 
 -- description = {
 --   summary = 'Compresses Lua source code by removing unnecessary characters',
