@@ -24,19 +24,21 @@ dependencies = {
 build = {
   type = 'builtin',
   modules = {
+    ['luasrcdiet'] = 'luasrcdiet/init.lua',
+    ['luasrcdiet.equiv'] = 'luasrcdiet/equiv.lua',
+    ['luasrcdiet.fs'] = 'luasrcdiet/fs.lua',
+    ['luasrcdiet.llex'] = 'luasrcdiet/llex.lua',
+    ['luasrcdiet.lparser'] = 'luasrcdiet/lparser.lua',
+    ['luasrcdiet.optlex'] = 'luasrcdiet/optlex.lua',
+    ['luasrcdiet.optparser'] = 'luasrcdiet/optparser.lua',
     ['luasrcdiet.plugin.example'] = 'luasrcdiet/plugin/example.lua',
     ['luasrcdiet.plugin.html'] = 'luasrcdiet/plugin/html.lua',
     ['luasrcdiet.plugin.sloc'] = 'luasrcdiet/plugin/sloc.lua',
-    ['luasrcdiet.equiv'] = 'luasrcdiet/equiv.lua',
-    ['luasrcdiet.llex'] = 'luasrcdiet/llex.lua',
-    ['luasrcdiet.lparser'] = 'luasrcdiet/lparser.lua',
-    ['luasrcdiet.LuaSrcDiet'] = 'luasrcdiet/LuaSrcDiet.lua',
-    ['luasrcdiet.optlex'] = 'luasrcdiet/optlex.lua',
-    ['luasrcdiet.optparser'] = 'luasrcdiet/optparser.lua',
+    ['luasrcdiet.utils'] = 'luasrcdiet/utils.lua',
   },
   install = {
     bin = {
-      luasrcdiet = 'luasrcdiet/LuaSrcDiet.lua',
+      luasrcdiet = 'bin/luasrcdiet',
     }
   }
 }

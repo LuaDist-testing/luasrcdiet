@@ -7,6 +7,28 @@ All notable changes to this project will be documented in this file.
 Since release 0.2.0 the format of this file is based on http://keepachangelog.com/[Keep a Changelog] and this project adheres to http://semver.org/[Semantic Versioning].
 
 
+== link:{compare}/v0.2.0\...v0.3.0[0.3.0] (2017-07-19)
+
+Added::
+  * API for simple programmatic use (module `luasrcdiet.init`).
+
+Changed::
+  * Change name of `localinfo`’s key `isself` to `is_special` and use it even for `_ENV`.
+  * Move `luasrcdiet/LuaSrcDiet.lua` to `bin/luasrcdiet`.
+  * Rename function `llex.llex()` to `llex.lex(...)`, add parameters `source, source_name`, and change return value to `tok, seminfo, tokln`.
+  * Rename function `lparser.parser()` to `lparser.parse(...)`, add parameters `tok, seminfo, tokln`.
+
+Fixed::
+  * Fix missing source file in `samples/Makefile`.
+  * Treat local variable/parameter `_ENV` as special, i.e. never rename it.
+
+Removed::
+  * Remove `llex`’s functions `chunkid()` and `errorline(...)` from the module functions (i.e. make them local).
+  * Remove `llex`’s module fields `tok`, `seminfo`, and `tokln` (i.e. make them local); they are return values of `lex(...)` now.
+  * Remove function `llex.init(...)`; pass the parameters to `llex.lex(...)` instead.
+  * Remove function `lparser.init(...)`; pass the parameters to `lparser.parse(...)` instead.
+
+
 == link:{compare}/v0.12.1\...v0.2.0[0.2.0] (2017-07-17)
 
 Added::

@@ -3,15 +3,15 @@
 -- vim: set ft=lua:
 
 package = 'LuaSrcDiet'
-version = '0.2.0-2'
+version = '0.3.0-2'
 
 -- LuaDist source
 source = {
-  tag = "0.2.0-2",
+  tag = "0.3.0-2",
   url = "git://github.com/LuaDist-testing/luasrcdiet.git"
 }
 -- Original source
--- source = { url = 'https://github.com/jirutka/luasrcdiet/archive/v0.2.0/luasrcdiet-0.2.0.tar.gz', md5 = '0569370cc02611973224444234f2c978' }
+-- 			source = { url = 'https://github.com/jirutka/luasrcdiet/archive/v0.3.0/luasrcdiet-0.3.0.tar.gz', md5 = 'c0ff36ef66cd0568c96bc54e9253a8fa' }
 -- 
 -- description = {
 --   summary = 'Compresses Lua source code by removing unnecessary characters',
@@ -29,19 +29,21 @@ dependencies = {
 build = {
   type = 'builtin',
   modules = {
+    ['luasrcdiet'] = 'luasrcdiet/init.lua',
+    ['luasrcdiet.equiv'] = 'luasrcdiet/equiv.lua',
+    ['luasrcdiet.fs'] = 'luasrcdiet/fs.lua',
+    ['luasrcdiet.llex'] = 'luasrcdiet/llex.lua',
+    ['luasrcdiet.lparser'] = 'luasrcdiet/lparser.lua',
+    ['luasrcdiet.optlex'] = 'luasrcdiet/optlex.lua',
+    ['luasrcdiet.optparser'] = 'luasrcdiet/optparser.lua',
     ['luasrcdiet.plugin.example'] = 'luasrcdiet/plugin/example.lua',
     ['luasrcdiet.plugin.html'] = 'luasrcdiet/plugin/html.lua',
     ['luasrcdiet.plugin.sloc'] = 'luasrcdiet/plugin/sloc.lua',
-    ['luasrcdiet.equiv'] = 'luasrcdiet/equiv.lua',
-    ['luasrcdiet.llex'] = 'luasrcdiet/llex.lua',
-    ['luasrcdiet.lparser'] = 'luasrcdiet/lparser.lua',
-    ['luasrcdiet.LuaSrcDiet'] = 'luasrcdiet/LuaSrcDiet.lua',
-    ['luasrcdiet.optlex'] = 'luasrcdiet/optlex.lua',
-    ['luasrcdiet.optparser'] = 'luasrcdiet/optparser.lua',
+    ['luasrcdiet.utils'] = 'luasrcdiet/utils.lua',
   },
   install = {
     bin = {
-      luasrcdiet = 'luasrcdiet/LuaSrcDiet.lua',
+      luasrcdiet = 'bin/luasrcdiet',
     }
   }
 }

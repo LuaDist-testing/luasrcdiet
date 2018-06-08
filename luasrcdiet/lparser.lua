@@ -19,8 +19,8 @@
 -- * Added basic support for goto and label statements, i.e. parser
 --   does not crash on them (Lua 5.2+).
 ----
-local string = require "string"
-
+local fmt = string.format
+local gmatch = string.gmatch
 local pairs = pairs
 
 local M = {}
@@ -60,8 +60,6 @@ local explist1, expr, block, exp1, body, chunk
 -- initialization: data structures
 ----------------------------------------------------------------------
 
-local gmatch = string.gmatch
-
 local block_follow = {}         -- lookahead check in chunk(), returnstat()
 for v in gmatch("else elseif end until <eof>", "%S+") do
   block_follow[v] = true
@@ -95,7 +93,7 @@ local UNARY_PRIORITY = 8        -- priority for unary operators
 
 local function errorline(s, line)
   local e = M.error or error
-  e(string.format("(source):%d: %s", line or ln, s))
+  e(fmt("(source):%d: %s", line or ln, s))
 end
 
 ----------------------------------------------------------------------
@@ -180,7 +178,7 @@ local function check_match(what, who, where)
 end
 
 ----------------------------------------------------------------------
--- expect that token is a name, return the name
+-- expect that token is a name, consume it and return the name
 ----------------------------------------------------------------------
 
 local function str_checkname()
@@ -189,22 +187,6 @@ local function str_checkname()
   nameref = xref
   nextt()
   return ts
-end
-
-----------------------------------------------------------------------
--- adds given string s in string pool, sets e as VK
-----------------------------------------------------------------------
-
-local function codestring(e, s)  --luacheck: ignore 212
-  e.k = "VK"
-end
-
-----------------------------------------------------------------------
--- consume a name token, adds it to string pool
-----------------------------------------------------------------------
-
-local function checkname(e)
-  codestring(e, str_checkname())
 end
 
 --[[--------------------------------------------------------------------
@@ -239,8 +221,8 @@ local function new_localvar(name, special)
     xref = { nameref },         -- xref, first value is declaration
     decl = nameref,             -- location of declaration, = xref[1]
   }
-  if special then               -- "self" must be not be changed
-    localinfo[id].isself = true
+  if special or name == "_ENV" then  -- "self" and "_ENV" must be not be changed
+    localinfo[id].is_special = true
   end
   -- this can override a local with the same name in the same scope
   -- but first, keep it inactive until it gets activated
@@ -309,7 +291,7 @@ end
 ----------------------------------------------------------------------
 
 local function new_localvarliteral(name, special)
-  if string.sub(name, 1, 1) == "(" then  -- can skip internal locals
+  if name:sub(1, 1) == "(" then  -- can skip internal locals
     return
   end
   new_localvar(name, special)
@@ -391,8 +373,7 @@ local function singlevar(v)
     end
   else
     -- local/upvalue is being accessed, keep track of it
-    local id = v.id
-    local obj = localinfo[id].xref
+    local obj = localinfo[v.id].xref
     obj[#obj + 1] = nameref             -- add xref
   end
 end
@@ -465,9 +446,8 @@ end
 
 local function field(v)
   -- field -> ['.' | ':'] NAME
-  local key = {}
   nextt()  -- skip the dot or colon
-  checkname(key)
+  str_checkname()
   v.k = "VINDEXED"
 end
 
@@ -476,10 +456,10 @@ end
 -- * used in recfield(), primaryexp()
 ----------------------------------------------------------------------
 
-local function yindex(v)
+local function yindex()
   -- index -> '[' expr ']'
   nextt()  -- skip the '['
-  expr(v)
+  expr({})
   checknext("]")
 end
 
@@ -488,16 +468,15 @@ end
 -- * used in constructor()
 ----------------------------------------------------------------------
 
-local function recfield(cc)  --luacheck: ignore 212
+local function recfield()
   -- recfield -> (NAME | '['exp1']') = exp1
-  local key, val = {}, {}
   if tok == "<name>" then
-    checkname(key)
+    str_checkname()
   else-- tok == '['
-    yindex(key)
+    yindex()
   end
   checknext("=")
-  expr(val)
+  expr({})
 end
 
 ----------------------------------------------------------------------
@@ -519,11 +498,10 @@ local function constructor(t)
   -- field -> recfield | listfield
   -- fieldsep -> ',' | ';'
   local line = ln
-  local cc = {}
-  cc.v = {}
-  cc.t = t
+  local cc = {
+    v = { k = "VVOID" },
+  }
   t.k = "VRELOCABLE"
-  cc.v.k = "VVOID"
   checknext("{")
   repeat
     if tok == "}" then break end
@@ -533,10 +511,10 @@ local function constructor(t)
       if lookahead() ~= "=" then  -- look ahead: expression?
         listfield(cc)
       else
-        recfield(cc)
+        recfield()
       end
     elseif c == "[" then  -- constructor_item -> recfield
-      recfield(cc)
+      recfield()
     else  -- constructor_part -> listfield
       listfield(cc)
     end
@@ -577,7 +555,6 @@ end
 ----------------------------------------------------------------------
 
 local function funcargs(f)
-  local args = {}
   local line = ln
   local c = tok
   if c == "(" then  -- funcargs -> '(' [ explist1 ] ')'
@@ -585,16 +562,13 @@ local function funcargs(f)
       syntaxerror("ambiguous syntax (function call x new statement)")
     end
     nextt()
-    if tok == ")" then  -- arg list is empty?
-      args.k = "VVOID"
-    else
-      explist1(args)
+    if tok ~= ")" then  -- arg list is not empty?
+      explist1()
     end
     check_match(")", "(", line)
   elseif c == "{" then  -- funcargs -> constructor
-    constructor(args)
+    constructor({})
   elseif c == "<string>" then  -- funcargs -> STRING
-    codestring(args, seminfo)
     nextt()  -- must use 'seminfo' before 'next'
   else
     syntaxerror("function arguments expected")
@@ -642,12 +616,10 @@ local function primaryexp(v)
     if c == "." then  -- field
       field(v)
     elseif c == "[" then  -- '[' exp1 ']'
-      local key = {}
-      yindex(key)
+      yindex()
     elseif c == ":" then  -- ':' NAME funcargs
-      local key = {}
       nextt()
-      checkname(key)
+      str_checkname()
       funcargs(v)
     elseif c == "(" or c == "<string>" or c == "{" then  -- funcargs
       funcargs(v)
@@ -669,7 +641,7 @@ local function simpleexp(v)
   if c == "<number>" then
     v.k = "VKNUM"
   elseif c == "<string>" then
-    codestring(v, seminfo)
+    v.k = "VK"
   elseif c == "nil" then
     v.k = "VNIL"
   elseif c == "true" then
@@ -685,7 +657,7 @@ local function simpleexp(v)
     return
   elseif c == "function" then
     nextt()
-    body(v, false, ln)
+    body(false, ln)
     return
   else
     primaryexp(v)
@@ -720,11 +692,9 @@ local function subexpr(v, limit)
   op = tok
   local binop = binopr_left[op]
   while binop and binop > limit do
-    local v2 = {}
     nextt()
     -- read sub-expression with higher priority
-    local nextop = subexpr(v2, binopr_right[op])
-    op = nextop
+    op = subexpr({}, binopr_right[op])  -- next operator
     binop = binopr_left[op]
   end
   return op  -- return first untreated operator
@@ -755,7 +725,6 @@ end
 ------------------------------------------------------------------------
 
 local function assignment(v)
-  local e = {}
   local c = v.v.k
   check_condition(c == "VLOCAL" or c == "VUPVAL" or c == "VGLOBAL"
                   or c == "VINDEXED", "syntax error")
@@ -767,10 +736,9 @@ local function assignment(v)
     assignment(nv)
   else  -- assignment -> '=' explist1
     checknext("=")
-    explist1(e)
+    explist1()
     return  -- avoid default
   end
-  e.k = "VNONRELOC"
 end
 
 ----------------------------------------------------------------------
@@ -778,7 +746,7 @@ end
 -- * used in fornum(), forlist()
 ----------------------------------------------------------------------
 
-local function forbody(nvars, isnum)  --luacheck: ignore 212
+local function forbody(nvars)
   -- forbody -> DO block
   checknext("do")
   enterblock(false)  -- scope for declared variables
@@ -807,7 +775,7 @@ local function fornum(varname)
   else
     -- default step = 1
   end
-  forbody(1, true)
+  forbody(1)
 end
 
 ----------------------------------------------------------------------
@@ -817,7 +785,6 @@ end
 
 local function forlist(indexname)
   -- forlist -> NAME {, NAME} IN explist1 DO body
-  local e = {}
   -- create control variables
   new_localvarliteral("(for generator)")
   new_localvarliteral("(for state)")
@@ -830,8 +797,8 @@ local function forlist(indexname)
     nvars = nvars + 1
   end
   checknext("in")
-  explist1(e)
-  forbody(nvars, false)
+  explist1()
+  forbody(nvars)
 end
 
 ----------------------------------------------------------------------
@@ -861,8 +828,7 @@ end
 -- this is a forward-referenced local
 function exp1()
   -- exp1 -> expr
-  local e = {}
-  expr(e)
+  expr({})
 end
 
 ----------------------------------------------------------------------
@@ -872,8 +838,7 @@ end
 
 local function cond()
   -- cond -> expr
-  local v = {}
-  expr(v)  -- read condition
+  expr({})  -- read condition
 end
 
 ----------------------------------------------------------------------
@@ -898,7 +863,7 @@ local function localfunc()
   -- localfunc -> NAME body
   new_localvar(str_checkname())
   adjustlocalvars(1)
-  body(nil, false, ln)
+  body(false, ln)
 end
 
 ----------------------------------------------------------------------
@@ -909,15 +874,14 @@ end
 local function localstat()
   -- localstat -> NAME {',' NAME} ['=' explist1]
   local nvars = 0
-  local e = {}
   repeat
     new_localvar(str_checkname())
     nvars = nvars + 1
   until not testnext(",")
   if testnext("=") then
-    explist1(e)
+    explist1()
   else
-    e.k = "VVOID"
+    -- VVOID
   end
   adjustlocalvars(nvars)
 end
@@ -929,8 +893,9 @@ end
 ----------------------------------------------------------------------
 
 -- this is a forward-referenced local
-function explist1(e)
+function explist1()
   -- explist1 -> expr { ',' expr }
+  local e = {}
   expr(e)
   while testnext(",") do
     expr(e)
@@ -943,7 +908,7 @@ end
 ----------------------------------------------------------------------
 
 -- this is a forward-referenced local
-function body(e, needself, line)  --luacheck: ignore 212
+function body(needself, line)
   -- body ->  '(' parlist ')' chunk END
   open_func()
   checknext("(")
@@ -1069,13 +1034,12 @@ end
 
 local function return_stat()
   -- stat -> return_stat -> RETURN explist
-  local e = {}
   nextt()  -- skip RETURN
   local c = tok
   if block_follow[c] or c == ";" then
     -- return no values
   else
-    explist1(e)  -- optional return values
+    explist1()  -- optional return values
   end
 end
 
@@ -1133,8 +1097,7 @@ end
 local function expr_stat()
   local id = tpos - 1
   -- stat -> expr_stat -> func | assignment
-  local v = {}
-  v.v = {}
+  local v = { v = {} }
   primaryexp(v.v)
   if v.v.k == "VCALL" then  -- stat -> func
     -- call statement uses no results
@@ -1154,10 +1117,9 @@ end
 local function function_stat()
   -- stat -> function_stat -> FUNCTION funcname body
   local line = line
-  local v, b = {}, {}
   nextt()  -- skip FUNCTION
-  local needself = funcname(v)
-  body(b, needself, line)
+  local needself = funcname({})
+  body(needself, line)
 end
 
 ----------------------------------------------------------------------
@@ -1249,32 +1211,10 @@ function chunk()
 end
 
 ----------------------------------------------------------------------
--- performs parsing, returns parsed data structure
-----------------------------------------------------------------------
-
-function M.parser()
-  open_func()
-  fs.is_vararg = true  -- main func. is always vararg
-  nextt()  -- read first token
-  chunk()
-  check("<eof>")
-  close_func()
-  return {  -- return everything
-    globalinfo = globalinfo,
-    localinfo = localinfo,
-    statinfo = statinfo,
-    toklist = toklist,
-    seminfolist = seminfolist,
-    toklnlist = toklnlist,
-    xreflist = xreflist,
-  }
-end
-
-----------------------------------------------------------------------
 -- initialization function
 ----------------------------------------------------------------------
 
-function M.init(tokorig, seminfoorig, toklnorig)
+local function init(tokorig, seminfoorig, toklnorig)
   tpos = 1                      -- token position
   top_fs = {}                   -- reset top level function state
   ------------------------------------------------------------------
@@ -1317,6 +1257,30 @@ function M.init(tokorig, seminfoorig, toklnorig)
   globalinfo, globallookup, localinfo = {}, {}, {}
   ilocalinfo, ilocalrefs = {}, {}
   statinfo = {}  -- experimental
+end
+
+----------------------------------------------------------------------
+-- performs parsing, returns parsed data structure
+----------------------------------------------------------------------
+
+function M.parse(tokens, seminfo, tokens_ln)
+  init(tokens, seminfo, tokens_ln)
+
+  open_func()
+  fs.is_vararg = true  -- main func. is always vararg
+  nextt()  -- read first token
+  chunk()
+  check("<eof>")
+  close_func()
+  return {  -- return everything
+    globalinfo = globalinfo,
+    localinfo = localinfo,
+    statinfo = statinfo,
+    toklist = toklist,
+    seminfolist = seminfolist,
+    toklnlist = toklnlist,
+    xreflist = xreflist,
+  }
 end
 
 return M

@@ -17,13 +17,10 @@
 -- * binary: There is a lack of diagnostic information when a compare
 --   fails; you can use ChunkSpy and compare using visual diff.
 ----
-local string = require "string"
-
+local byte = string.byte
+local dump = string.dump
 local load = loadstring or load  --luacheck: ignore 113
 local sub = string.sub
-local match = string.match
-local dump = string.dump
-local byte = string.byte
 
 local M = {}
 
@@ -57,10 +54,7 @@ end
 -- @treturn table
 -- @treturn table
 local function build_stream(s)
-  llex.init(s)
-  llex.llex()
-  local stok, sseminfo -- source list (with whitespace elements)
-    = llex.tok, llex.seminfo
+  local stok, sseminfo = llex.lex(s) -- source list (with whitespace elements)
   local tok, seminfo   -- processed list (real elements only)
     = {}, {}
   for i = 1, #stok do
@@ -98,8 +92,8 @@ function M.source(z, dat)
   local tok2, seminfo2 = build_stream(dat)      -- compressed
 
   -- Compare shbang lines ignoring EOL.
-  local sh1 = match(z, "^(#[^\r\n]*)")
-  local sh2 = match(dat, "^(#[^\r\n]*)")
+  local sh1 = z:match("^(#[^\r\n]*)")
+  local sh2 = dat:match("^(#[^\r\n]*)")
   if sh1 or sh2 then
     if not sh1 or not sh2 or sh1 ~= sh2 then
       bork("shbang lines different")
@@ -408,7 +402,7 @@ function M.binary(z, dat)
 
   -- Removes shbang line so that load runs.
   local function zap_shbang(s)
-    local shbang = match(s, "^(#[^\r\n]*\r?\n?)")
+    local shbang = s:match("^(#[^\r\n]*\r?\n?)")
     if shbang then                      -- cut out shbang
       s = sub(s, #shbang + 1)
     end

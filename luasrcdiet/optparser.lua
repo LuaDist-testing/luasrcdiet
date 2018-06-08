@@ -14,10 +14,15 @@
 --   do with significantly less depending on how many that are really
 --   needed and improve entropy; e.g. 13 needed -> choose 4*4 instead.
 ----
-local string = require "string"
-local table = require "table"
-
+local byte = string.byte
+local char = string.char
+local concat = table.concat
+local fmt = string.format
 local pairs = pairs
+local rep = string.rep
+local sort = table.sort
+local sub = string.sub
+
 
 local M = {}
 
@@ -35,10 +40,10 @@ local ALPHANUM = "etaoinshrdlucmfwypvbgkqjxz_0123456789ETAOINSHRDLUCMFWYPVBGKQJX
 -- Names or identifiers that must be skipped.
 -- (The first two lines are for keywords.)
 local SKIP_NAME = {}
-for v in string.gmatch([[
+for v in ([[
 and break do else elseif end false for function if in
 local nil not or repeat return then true until while
-self]], "%S+") do
+self _ENV]]):gmatch("%S+") do
   SKIP_NAME[v] = true
 end
 
@@ -99,8 +104,6 @@ end
 --
 -- @tparam table option
 local function recalc_for_entropy(option)
-  local byte = string.byte
-  local char = string.char
   -- table of token classes to accept in calculating symbol frequency
   local ACCEPT = {
     TK_KEYWORD = true, TK_NAME = true, TK_NUMBER = true,
@@ -147,16 +150,14 @@ local function recalc_for_entropy(option)
       local c = byte(symbols, i)
       symlist[i] = { c = c, freq = freq[c], }
     end
-    table.sort(symlist,                 -- sort selected symbols
-      function(v1, v2)
+    sort(symlist, function(v1, v2)  -- sort selected symbols
         return v1.freq > v2.freq
-      end
-    )
+      end)
     local charlist = {}                 -- reconstitute the string
     for i = 1, #symlist do
       charlist[i] = char(symlist[i].c)
     end
-    return table.concat(charlist)
+    return concat(charlist)
   end
 
   LETTERS = resort(LETTERS)             -- change letter arrangement
@@ -176,7 +177,7 @@ local function new_var_name()
   local v = var_new
   if v < cletters then                  -- single char
     v = v + 1
-    var = string.sub(LETTERS, v, v)
+    var = sub(LETTERS, v, v)
   else                                  -- longer names
     local range, sz = cletters, 1       -- calculate # chars fit
     repeat
@@ -187,12 +188,12 @@ local function new_var_name()
     local n = v % cletters              -- left side cycles faster
     v = (v - n) / cletters              -- do first char first
     n = n + 1
-    var = string.sub(LETTERS, n, n)
+    var = sub(LETTERS, n, n)
     while sz > 1 do
       local m = v % calphanum
       v = (v - m) / calphanum
       m = m + 1
-      var = var..string.sub(ALPHANUM, m, m)
+      var = var..sub(ALPHANUM, m, m)
       sz = sz - 1
     end
   end
@@ -210,7 +211,6 @@ end
 -- @tparam table option
 local function stats_summary(globaluniq, localuniq, afteruniq, option)  --luacheck: ignore 431
   local print = M.print or print
-  local fmt = string.format
   local opt_details = option.DETAILS
   if option.QUIET then return end
 
@@ -258,15 +258,13 @@ local function stats_summary(globaluniq, localuniq, afteruniq, option)  --luache
       uniq.name = name
       sorted[#sorted + 1] = uniq
     end
-    table.sort(sorted,
-      function(v1, v2)
+    sort(sorted, function(v1, v2)
         return v1.size > v2.size
-      end
-    )
+      end)
 
     do
       local tabf1, tabf2 = "%8s%8s%10s  %s", "%8d%8d%10.2f  %s"
-      local hl = string.rep("-", 44)
+      local hl = rep("-", 44)
       print("*** global variable list (sorted by size) ***\n"..hl)
       print(fmt(tabf1, "Token",  "Input", "Input", "Global"))
       print(fmt(tabf1, "Count", "Bytes", "Average", "Name"))
@@ -283,7 +281,7 @@ local function stats_summary(globaluniq, localuniq, afteruniq, option)  --luache
     -- Detailed stats: local list
     do
       local tabf1, tabf2 = "%8s%8s%8s%10s%8s%10s  %s", "%8d%8d%8d%10.2f%8d%10.2f  %s"
-      local hl = string.rep("-", 70)
+      local hl = rep("-", 70)
       print("*** local variable list (sorted by allocation order) ***\n"..hl)
       print(fmt(tabf1, "Decl.", "Token",  "Input", "Input", "Output", "Output", "Global"))
       print(fmt(tabf1, "Count", "Count", "Bytes", "Average", "Bytes", "Average", "Name"))
@@ -312,7 +310,7 @@ local function stats_summary(globaluniq, localuniq, afteruniq, option)  --luache
   -- Display output
   do
     local tabf1, tabf2 = "%-16s%8s%8s%8s%8s%10s", "%-16s%8d%8d%8d%8d%10.2f"
-    local hl = string.rep("-", 58)
+    local hl = rep("-", 58)
     print("*** local variable optimization summary ***\n"..hl)
     print(fmt(tabf1, "Variable",  "Unique", "Decl.", "Token", "Size", "Average"))
     print(fmt(tabf1, "Types", "Names", "Count", "Count", "Bytes", "Bytes"))
@@ -425,28 +423,26 @@ local function optimize_locals(option)
   -- token count, this might help assign more tokens to more common
   -- variable names such as 'e' thus possibly reducing entropy.
   -- * An object knows its localinfo index via its 'id' field.
-  -- * Special handling for "self" special local (parameter) here.
+  -- * Special handling for "self" and "_ENV" special local (parameter) here.
   local object = {}
   for i = 1, #localinfo do
     object[i] = localinfo[i]
   end
-  table.sort(object,                    -- sort largest first
-    function(v1, v2)
+  sort(object, function(v1, v2)  -- sort largest first
       return v1.xcount > v2.xcount
-    end
-  )
+    end)
 
-  -- The special "self" function parameters must be preserved.
+  -- The special "self" and "_ENV" function parameters must be preserved.
   -- * The allocator below will never use "self", so it is safe to
   --   keep those implicit declarations as-is.
-  local temp, j, gotself = {}, 1, false
+  local temp, j, used_specials = {}, 1, {}
   for i = 1, #object do
     local obj = object[i]
-    if not obj.isself then
+    if not obj.is_special then
       temp[j] = obj
       j = j + 1
     else
-      gotself = true
+      used_specials[#used_specials + 1] = obj.name
     end
   end
   object = temp
@@ -611,8 +607,8 @@ local function optimize_locals(option)
   end
 
   -- Deal with statistics output.
-  if gotself then  -- add 'self' to end of list
-    varlist[#varlist + 1] = "self"
+  for _, name in ipairs(used_specials) do
+    varlist[#varlist + 1] = name
   end
   local afteruniq = preprocess(localinfo)
   stats_summary(globaluniq, localuniq, afteruniq, option)

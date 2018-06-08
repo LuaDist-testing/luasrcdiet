@@ -6,12 +6,11 @@
 -- * TODO: General string delimiter conversion optimizer.
 -- * TODO: (numbers) warn if overly significant digit.
 ----
-local string = require "string"
-
-local match = string.match
-local sub = string.sub
+local char = string.char
 local find = string.find
+local match = string.match
 local rep = string.rep
+local sub = string.sub
 local tonumber = tonumber
 local tostring = tostring
 
@@ -369,7 +368,7 @@ local function do_string(I)
         local s = match(z, "^(%d%d?%d?)", j)
         j = i + 1 + #s                  -- skip to location
         local cv = tonumber(s)
-        local cc = string.char(cv)
+        local cc = char(cv)
         p = find("\a\b\f\n\r\t\v", cc, 1, true)
         if p then                       -- special escapes
           s = "\\"..sub("abfnrtv", p, p)
